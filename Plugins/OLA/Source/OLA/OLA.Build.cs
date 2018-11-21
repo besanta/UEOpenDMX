@@ -17,13 +17,14 @@ public class OLA : ModuleRules
 		
 		PrivateIncludePaths.AddRange(
 			new string[] {
-                "ThirdParty/OLALibrary/include",
-                "ThirdParty/OLALibrary/ola",
-                "ThirdParty/OLALibrary/plugins"
+                //""
+  //              "ThirdParty/OLALibrary/include",
+  //              "ThirdParty/OLALibrary/ola",
+  //              "ThirdParty/OLALibrary/plugins"
 
-				// ... add other private include paths required here ...
+		//		// ... add other private include paths required here ...
 			}
-			);
+		);
 			
 		
 		PublicDependencyModuleNames.AddRange(
@@ -33,7 +34,8 @@ public class OLA : ModuleRules
                 "CoreUObject",
                 "Engine",
                 "OLALibrary",
-				"Projects"
+				"Projects",
+               // "UE4Duino"
 				// ... add other public dependencies that you statically link with here ...
 			}
 			);

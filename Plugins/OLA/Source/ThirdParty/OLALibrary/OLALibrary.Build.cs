@@ -9,7 +9,17 @@ public class OLALibrary : ModuleRules
 	{
 		Type = ModuleType.External;
 
-		if (Target.Platform == UnrealTargetPlatform.Win64)
+        PublicIncludePaths.AddRange(
+            new string[] {
+                Path.Combine(ModuleDirectory,"include"),
+                Path.Combine(ModuleDirectory,"ola"),
+                Path.Combine(ModuleDirectory,"plugins")
+
+				// ... add other private include paths required here ...
+			}
+        );
+
+        if (Target.Platform == UnrealTargetPlatform.Win64)
 		{
 			// Add the import library
 			PublicLibraryPaths.Add(Path.Combine(ModuleDirectory, "x64", "Release"));
