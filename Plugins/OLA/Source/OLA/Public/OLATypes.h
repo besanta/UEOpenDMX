@@ -1,31 +1,41 @@
 #pragma once
 
 
-#define FC_DTRDSR       0x01
-#define FC_RTSCTS       0x02
-#define FC_XONXOFF      0x04
-#define ASCII_BEL       0x07
-#define ASCII_BS        0x08
-#define ASCII_LF        0x0A
-#define ASCII_CR        0x0D
-#define ASCII_XON       0x11
-#define ASCII_XOFF      0x13
-
-#include "Windows/AllowWindowsPlatformTypes.h"
-#include "windows.h"
-#include "Windows/HideWindowsPlatformTypes.h"
 
 #include "CoreMinimal.h"
+#include "TimerManager.h"
 #include "GameFramework/Actor.h"
 #include "GameFramework/GameModeBase.h"
 
-//#include "Serial.h"
+#include "Serial.h"
 
 #include "OLA.h"
 #include "OLATypes.generated.h"
 
 class AOLAServer;
 
+// ENTTEC DMX USB 
+//	https://dol2kh495zr52.cloudfront.net/pdf/misc/dmx_usb_pro_api_spec.pdf
+// DMX512 Protocol Implementation Using MC9S08GT60 8-Bit MC
+//	https://www.nxp.com/docs/en/application-note/AN3315.pdf
+
+// State of receiving DMX Bytes
+UENUM()
+enum class EDMXState : uint8 {
+	START = 0,  // wait for any interrupt BEFORE starting analyzig the DMX protocol.
+	LABEL = 1,  // wait for a BREAK condition.
+	LEN_LSB = 2,  // BREAK was detected.
+	LEN_MSB = 3,  // DMX data.
+	DATA = 4,  // All channels received.
+	END = 5
+};
+
+#define DMX_START 0x7E
+#define DMX_STOP 0xE7
+#define DMX_BREAK 0x00
+
+#define DMX_MAX_SIZE 512
+#define DMX_BAUD_RATE 115200
 
 USTRUCT(BlueprintType)
 struct FOLAMessage
@@ -138,13 +148,18 @@ public:
 	* Open a serial port. Don't forget to close the port before exiting the game.
 	* If this Serial instance has already an opened port,
 	* return false and doesn't change the opened port number.
+	* DMXUSB should receive and transmit data at the highest, most reliable speed possible
+	* Recommended Arduino baud rate: 115200
+	* Recommended Teensy 3 baud rate: 2000000 (2 Mb/s)
+	* DMX baud rate: 250000
+	* MIDI baud rate: 31250
 	*
 	* @param Port The serial port to open.
 	* @param BaudRate BaudRate to open the serial port with.
 	* @return If the serial port was successfully opened.
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Open Lighting Architecture")
-		bool Open(int32 Port = 2, int32 BaudRate = 9600);
+		bool Open(int32 Port = 2, int32 BaudRate = 115200);
 	/**
 	* Close and end the communication with the serial port. If not open, do nothing.
 	*/
@@ -152,21 +167,37 @@ public:
 		void Close();
 
 	UFUNCTION(BlueprintCallable, Category = "Open Lighting Architecture")
-		bool WriteBytes(TArray<uint8> Buffer);
+		TArray<uint8> ReadBytes(int32 Limit = 256);
+
+	UFUNCTION(BlueprintCallable, Category = "Open Lighting Architecture")
+		bool Write(int32 Channel, uint8 Value);
 
 	UFUNCTION(BlueprintPure)
 		bool IsConnected();
+
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Flush Port") , Category = "Open Lighting Architecture")
+		void Flush();
 private:
 	UPROPERTY()
 		TArray<FOLAMessage> MessageBuffer;
 
+	TArray<uint8> Data;
+	int CurrentMaxChannel;
+
+	FTimerHandle TimerHandle;
+	int32 LastSendTime;
+
+public:
+	UPROPERTY(BlueprintReadWrite)
+		uint8 Label;
+
+	void OnTime();
+
 protected:
-	void* m_hIDComDev;
+	EDMXState State;
 
-	OVERLAPPED m_OverlappedRead, m_OverlappedWrite;
-
-	int32 m_Port;
-	int32 m_Baud;
+	UPROPERTY()
+	USerial* Serial;
 };
 
 UCLASS(BlueprintType)

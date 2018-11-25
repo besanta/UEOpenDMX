@@ -32,6 +32,7 @@ public class OLA : ModuleRules
 			{
 				"Core",
                 "CoreUObject",
+                "RenderCore",
                 "Engine",
                 "OLALibrary",
 				"Projects",
