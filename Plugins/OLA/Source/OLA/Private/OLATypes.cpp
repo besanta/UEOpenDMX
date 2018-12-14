@@ -186,6 +186,9 @@ AOLAServer* AOLAGameMode::GetUniverse(int UniverseID)
 	return NULL;
 }
 
+
+int32 UOLABuffer::BaudRate(115200);
+
 UOLABuffer::UOLABuffer() 
 	: Serial(NULL)
 {
@@ -200,16 +203,17 @@ UOLABuffer::~UOLABuffer()
 	Serial = NULL;
 }
 
-bool UOLABuffer::Open(int32 nPort, int32 nBaud)
+bool UOLABuffer::Open(int32 nPort, bool AllowListening)
 {
 	// DMXUSB should receive and transmit data at the highest, most reliable speed possible
 	// Recommended Arduino baud rate: 115200
 	// Recommended Teensy 3 baud rate: 2000000 (2 Mb/s)
 	// DMX baud rate: 250000
 	// MIDI baud rate: 31250
-	Serial->Open(nPort, nBaud);
+	Serial->Open(nPort, BaudRate);
 	
 	State = EDMXState::START;
+	bAllowListening = AllowListening;
 	CurrentMaxChannel = 0;
 	if (GetOuter())
 	{
@@ -240,6 +244,141 @@ void UOLABuffer::Flush()
 		Serial->Flush();
 }
 
+void UOLABuffer::WriteDMXBuffer()
+{
+	bool Wrote = true;
+	switch (State) {
+
+	case EDMXState::START:
+	{
+		Wrote = Serial->WriteByte(DMX_START);
+		State = EDMXState::LABEL;
+		//World->GetTimerManager().SetTimer(TimerHandle, this, &UOLABuffer::OnTime, 0, false);
+		break;
+	}
+	case EDMXState::LABEL:
+	{
+		//Wrote = Serial->WriteByte(0);
+		Wrote = Serial->WriteByte(Label);
+		State = EDMXState::LEN_LSB;
+		//World->GetTimerManager().SetTimer(TimerHandle, this, &UOLABuffer::OnTime, 0, false);
+		break;
+	}
+	case EDMXState::LEN_LSB:
+	{
+		uint8 LSB = (CurrentMaxChannel + 1) & 0x00FF;
+		Wrote = Serial->WriteByte(LSB);
+		State = EDMXState::LEN_MSB;
+		//World->GetTimerManager().SetTimer(TimerHandle, this, &UOLABuffer::OnTime, 0, false);
+		break;
+	}
+	case EDMXState::LEN_MSB:
+	{
+		uint8 MSB = (CurrentMaxChannel + 1) >> CHAR_BIT;
+		Wrote = Serial->WriteByte(MSB);
+		State = EDMXState::DATA;
+		//World->GetTimerManager().SetTimer(TimerHandle, this, &UOLABuffer::OnTime, 0, false);
+		break;
+	}
+	case EDMXState::DATA:
+	{
+		TArray<uint8> DmxFrame;
+		//Wrote = Serial->WriteByte(0);
+		//DmxFrame.Add(0);
+		for (int i = 0; i <= CurrentMaxChannel; i++)
+		{
+			DmxFrame.Add(Data[i]);
+		}
+
+
+
+		//UE_LOG(LogOla, Log, TEXT("Serial Write Bytes %d"), Data.Num());
+		Wrote = Serial->WriteBytes(DmxFrame);
+		if (!Wrote)
+		{
+			UE_LOG(LogOla, Log, TEXT("Serial Write FAILED"));
+		}
+		State = EDMXState::END;
+		//World->GetTimerManager().SetTimer(TimerHandle, this, &UOLABuffer::OnTime, 0, false);
+		break;
+	}
+	case EDMXState::END:
+	{
+		Wrote = Serial->WriteByte(DMX_STOP);
+		State = EDMXState::START;
+		//World->GetTimerManager().SetTimer(TimerHandle, this, &UOLABuffer::OnTime, 0, false);
+		break;
+	}
+	default:
+		State = EDMXState::START;
+		//World->GetTimerManager().SetTimer(TimerHandle, this, &UOLABuffer::OnTime, 0, false);
+		break;
+	}
+}
+
+void UOLABuffer::TryReadDMXBuffer()
+{
+	bool Wrote = true;
+	bool Success = true;
+	uint8 Read = Serial->ReadByte(Success);
+
+	switch (ReadState) {
+
+	case EDMXState::START:
+	{
+		if (Read == DMX_START)
+		{
+			ReadState = EDMXState::LABEL;
+		}
+		break;
+	}
+	case EDMXState::LABEL:
+	{
+		Label = Read;
+		ReadState = EDMXState::LEN_LSB;
+		break;
+	}
+	case EDMXState::LEN_LSB:
+	{
+		ReadNewMaxChannel = Read;
+		ReadState = EDMXState::LEN_MSB;
+		break;
+	}
+	case EDMXState::LEN_MSB:
+	{
+		ReadNewMaxChannel |= Read << CHAR_BIT;
+		ReadNewData.Reserve(ReadNewMaxChannel);
+		ReadState = EDMXState::DATA;
+		break;
+	}
+	case EDMXState::DATA:
+	{
+		ReadNewData = Serial->ReadBytes(ReadNewMaxChannel);
+		//ReadNewData.Add(Read);
+		ReadState = EDMXState::END;
+		break;
+	}
+	case EDMXState::END:
+	{
+		if (DMX_STOP == Read)
+		{
+			for (int i = 0; i < ReadNewData.Num(); i++)
+			{
+				Data[i] = ReadNewData[i];
+			}
+
+			UE_LOG(LogOla, Log, TEXT("MessageReceived"));
+			OnDMXBufferReceived.Broadcast(/*Data*/);
+		}
+		ReadState = EDMXState::START;
+		break;
+	}
+	default:
+		ReadState = EDMXState::START;
+		break;
+	}
+}
+
 void UOLABuffer::OnTime()
 {
 	UWorld* World = NULL;
@@ -258,79 +397,14 @@ void UOLABuffer::OnTime()
 	{
 		if (true || DeltaTime >= MaxDelay)
 		{
-			bool Wrote = true;
-			switch (State) {
-			
-			case EDMXState::START:
-			{
-				Wrote = Serial->WriteByte(DMX_START);
-				State = EDMXState::LABEL;
-				//World->GetTimerManager().SetTimer(TimerHandle, this, &UOLABuffer::OnTime, 0, false);
-				break;
-			}
-			case EDMXState::LABEL:
-			{
-				//Wrote = Serial->WriteByte(0);
-				Wrote = Serial->WriteByte(Label);
-				State = EDMXState::LEN_LSB;
-				//World->GetTimerManager().SetTimer(TimerHandle, this, &UOLABuffer::OnTime, 0, false);
-				break;
-			}
-			case EDMXState::LEN_LSB:
-			{
-				uint8 LSB = (CurrentMaxChannel+1) & 0x00FF;
-				Wrote = Serial->WriteByte(LSB);
-				State = EDMXState::LEN_MSB;
-				//World->GetTimerManager().SetTimer(TimerHandle, this, &UOLABuffer::OnTime, 0, false);
-				break;
-			}
-			case EDMXState::LEN_MSB:
-			{
-				uint8 MSB = (CurrentMaxChannel+1) >> CHAR_BIT;
-				Wrote = Serial->WriteByte(MSB);
-				State = EDMXState::DATA;
-				//World->GetTimerManager().SetTimer(TimerHandle, this, &UOLABuffer::OnTime, 0, false);
-				break;
-			}
-			case EDMXState::DATA:
-			{
-				TArray<uint8> DmxFrame;
-				//Wrote = Serial->WriteByte(0);
-				//DmxFrame.Add(0);
-				for (int i = 0; i <= CurrentMaxChannel; i++)
-				{
-					DmxFrame.Add(Data[i]);
-				}
-				
+			WriteDMXBuffer();
+			LastSendTime = World->GetUnpausedTimeSeconds();
 
-
-				//UE_LOG(LogOla, Log, TEXT("Serial Write Bytes %d"), Data.Num());
-				Wrote = Serial->WriteBytes(DmxFrame);
-				if (!Wrote)
-				{
-					UE_LOG(LogOla, Log, TEXT("Serial Write FAILED"));
-				}
-				//Wrote = Serial->WriteByte(DMX_STOP);
-				LastSendTime = World->GetUnpausedTimeSeconds();
-				State = EDMXState::END;
-				//World->GetTimerManager().SetTimer(TimerHandle, this, &UOLABuffer::OnTime, 0, false);
-				break;
-			}
-			case EDMXState::END:
+			if (bAllowListening)
 			{
-				Wrote = Serial->WriteByte(DMX_STOP);
-				State = EDMXState::START;
-				//World->GetTimerManager().SetTimer(TimerHandle, this, &UOLABuffer::OnTime, 0, false);
-				break;
-			}
-			default:
-				State = EDMXState::START;
-				//World->GetTimerManager().SetTimer(TimerHandle, this, &UOLABuffer::OnTime, 0, false);
-				break;
+				TryReadDMXBuffer();
 			}
 		}
-
-		
 	}
 
 	//bool Success = true;

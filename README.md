@@ -2,7 +2,8 @@
 Implement DMX512 protocol so Unreal can send and receive DMX packages
 
 ![Alt wip](https://s3.amazonaws.com/snd-store/a/26553114/02_02_18_508408464_aab_560x292.jpg)
-
+![Alt Init](Documentation/BlueprintInit.png)
+![Alt Update](Documentation/BlueprintUpdate.png)
 # Technical Details
 
 * Include C++ Source for C++ Projects.

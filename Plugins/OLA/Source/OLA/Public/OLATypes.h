@@ -133,6 +133,9 @@ public:
 	uint8 Channel;
 };
 
+
+//DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FDMXListenerDelegate, const TArray<uint8>&, Output);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FDMXListenerDelegate);
 UCLASS(BlueprintType, Category = "Open Lighting Architecture")
 class UOLABuffer : public UObject
 {
@@ -140,9 +143,6 @@ class UOLABuffer : public UObject
 public:
 	UOLABuffer();
 	~UOLABuffer();
-
-	//Private UProperties
-	
 
 	/**
 	* Open a serial port. Don't forget to close the port before exiting the game.
@@ -159,7 +159,9 @@ public:
 	* @return If the serial port was successfully opened.
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Open Lighting Architecture")
-		bool Open(int32 Port = 2, int32 BaudRate = 115200);
+		bool Open(int32 Port = 2, bool AllowListening = false);
+
+	static int32 BaudRate;
 	/**
 	* Close and end the communication with the serial port. If not open, do nothing.
 	*/
@@ -177,24 +179,41 @@ public:
 
 	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Flush Port") , Category = "Open Lighting Architecture")
 		void Flush();
+
+	UFUNCTION()
+		void WriteDMXBuffer();
+	UFUNCTION()
+		void TryReadDMXBuffer();
 private:
 	UPROPERTY()
-		TArray<FOLAMessage> MessageBuffer;
+	TArray<FOLAMessage> MessageBuffer;
 
 	TArray<uint8> Data;
 	int CurrentMaxChannel;
 
+	int32 ReadNewMaxChannel;
+	TArray<uint8> ReadNewData;
+
 	FTimerHandle TimerHandle;
 	int32 LastSendTime;
+
+	bool bAllowListening : 1;
 
 public:
 	UPROPERTY(BlueprintReadWrite)
 		uint8 Label;
 
+	UPROPERTY(BlueprintReadOnly)
+	int32 Universe;
+
 	void OnTime();
+
+	UPROPERTY(BlueprintAssignable)
+	FDMXListenerDelegate OnDMXBufferReceived;
 
 protected:
 	EDMXState State;
+	EDMXState ReadState;
 
 	UPROPERTY()
 	USerial* Serial;

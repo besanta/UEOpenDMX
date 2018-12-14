@@ -75,3 +75,7 @@ Plugins/*/Intermediate/*
 
 # Cache files for the editor to use
 DerivedDataCache/*
+Plugins/OLA/Externals/ArduinoUSBDMX/main/Blink/Blink.ino
+Plugins/OLA/Externals/ArduinoUSBDMX/main/filter/filter.ino
+Plugins/OLA/Externals/ArduinoUSBDMX/main/Blink/tunes.h
+Plugins/OLA/Externals/ArduinoUSBDMX/main/Blink/pitches.h
