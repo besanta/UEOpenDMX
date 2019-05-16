@@ -1,0 +1,23 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "UESerialDMX",
+	"Description": "Allow DMX protocol over Serial port",
+	"Category": "Other",
+	"CreatedBy": "Santamaria Nicolas",
+	"CreatedByURL": "",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"CanContainContent": true,
+	"IsBetaVersion": false,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "UESerialDMX",
+			"Type": "Developer",
+			"LoadingPhase": "Default"
+		}
+	]
+}
